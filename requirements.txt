@@ -8,3 +8,6 @@ joblib
 jupyter
 notebook
 pillow
+plotly
+openpyxl
+statsmodels

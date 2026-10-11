@@ -43,8 +43,8 @@ def prepare_data(df, target_col='G3', drop_cols=['G1', 'G2']):
     X = df.drop(columns=[target_col] + cols_to_drop)
     y = df[target_col]
 
-    numeric_cols = X.select_dtypes(include=['int64', 'float64']).columns.tolist()
-    categorical_cols = X.select_dtypes(include=['object']).columns.tolist()
+    numeric_cols = X.select_dtypes(include=['int64', 'float64', 'number']).columns.tolist()
+    categorical_cols = X.select_dtypes(exclude=['number']).columns.tolist()
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     preprocessor = get_preprocessor(numeric_cols, categorical_cols)
