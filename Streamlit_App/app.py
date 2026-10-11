@@ -3,9 +3,16 @@ import pandas as pd
 import numpy as np
 import joblib
 import os
+from pathlib import Path
 import plotly.express as px
 import plotly.graph_objects as go
 import io
+
+# ---------------------------------------------------------
+# Cross-Platform Base Path Resolution (Windows & Streamlit Cloud Linux)
+# ---------------------------------------------------------
+APP_DIR = Path(__file__).resolve().parent
+ROOT_DIR = APP_DIR.parent
 
 # ---------------------------------------------------------
 # Page Configuration & Global Branding
@@ -18,7 +25,15 @@ st.set_page_config(
 )
 
 # Set native logo in sticky top header
-st.logo("Streamlit_App/logo.svg", size="large")
+logo_candidates = [
+    APP_DIR / "logo.svg",
+    ROOT_DIR / "Streamlit_App" / "logo.svg",
+    Path("Streamlit_App/logo.svg").resolve()
+]
+for lp in logo_candidates:
+    if lp.is_file():
+        st.logo(str(lp), size="large")
+        break
 
 # ---------------------------------------------------------
 # Blue + White Academic Theme & Top Navbar CSS
@@ -317,42 +332,41 @@ st.markdown("""
 # ---------------------------------------------------------
 @st.cache_data
 def load_default_data():
-    """Load the authentic UCI student dataset."""
-    possible_paths = [
-        os.path.join("Dataset", "student-mat.csv"),
-        os.path.join("..", "Dataset", "student-mat.csv"),
-        "student-mat.csv"
+    """Load the authentic UCI student dataset using reliable cross-platform paths."""
+    candidate_paths = [
+        ROOT_DIR / "Dataset" / "student-mat.csv",
+        APP_DIR / "Dataset" / "student-mat.csv",
+        ROOT_DIR / "student-mat.csv",
+        Path("Dataset/student-mat.csv").resolve(),
+        Path("student-mat.csv").resolve()
     ]
-    for path in possible_paths:
-        if os.path.exists(path):
-            try:
-                df = pd.read_csv(path, sep=';')
-                if df.shape[1] > 1:
-                    return df
-            except Exception:
-                pass
-            try:
-                df = pd.read_csv(path, sep=',')
-                if df.shape[1] > 1:
-                    return df
-            except Exception:
-                pass
+    for p in candidate_paths:
+        if p.is_file():
+            for sep in [';', ',']:
+                try:
+                    df = pd.read_csv(p, sep=sep)
+                    if df.shape[1] > 1:
+                        return df
+                except Exception:
+                    pass
     return None
 
 @st.cache_resource
 def load_trained_model():
-    """Load the saved trained ML pipeline model."""
-    possible_paths = [
-        os.path.join("Model", "best_model.pkl"),
-        os.path.join("..", "Model", "best_model.pkl"),
-        "best_model.pkl"
+    """Load the saved trained ML pipeline model using reliable cross-platform paths."""
+    candidate_paths = [
+        ROOT_DIR / "Model" / "best_model.pkl",
+        APP_DIR / "Model" / "best_model.pkl",
+        ROOT_DIR / "best_model.pkl",
+        Path("Model/best_model.pkl").resolve(),
+        Path("best_model.pkl").resolve()
     ]
-    for path in possible_paths:
-        if os.path.exists(path):
+    for p in candidate_paths:
+        if p.is_file():
             try:
-                return joblib.load(path)
+                return joblib.load(p)
             except Exception:
-                return None
+                pass
     return None
 
 def get_target_column(df):
@@ -1013,9 +1027,15 @@ def page_predict():
 
     if model is None:
         st.error("""
-            ❌ **Trained Model Pipeline Missing!**
-            The required model file `Model/best_model.pkl` could not be located.
-            Run `python src/train_model.py` to train and save the model.
+            ⚠️ **Trained Model Pipeline Unavailable!**
+            
+            The required model artifact `Model/best_model.pkl` could not be located in this environment.
+            
+            **How to resolve:**
+            1. Locally, run: `python src/train_model.py` to train and generate the model.
+            2. For Streamlit Cloud: Ensure `Model/best_model.pkl` is committed and pushed to GitHub (verify it is not excluded in `.gitignore`).
+            
+            *All other modules (Dashboard, Upload Data, Exploratory Analysis) remain fully functional.*
         """)
         return
     if default_df is None:
@@ -1169,10 +1189,15 @@ def page_batch_prediction():
     """, unsafe_allow_html=True)
 
     if model is None:
-        st.error("❌ Trained model is missing. Please run `python src/train_model.py` first.")
+        st.error("""
+            ⚠️ **Trained Model Pipeline Unavailable!**
+            The required model artifact `Model/best_model.pkl` could not be located.
+            Please ensure `Model/best_model.pkl` is trained and pushed to your GitHub repository.
+            *(Note: Dataset upload and exploratory analysis remain active and functional).*
+        """)
         return
     if default_df is None:
-        st.error("❌ Reference dataset missing.")
+        st.error("❌ Reference dataset `Dataset/student-mat.csv` missing.")
         return
 
     expected_cols = default_df.drop(columns=['G1', 'G2', 'G3'], errors='ignore').columns.tolist()
@@ -1314,9 +1339,16 @@ def page_model_performance():
         </div>
     """, unsafe_allow_html=True)
 
-    results_path = os.path.join("Output", "model_results.csv")
-    alt_results_path = os.path.join("..", "Output", "model_results.csv")
-    found_path = results_path if os.path.exists(results_path) else (alt_results_path if os.path.exists(alt_results_path) else None)
+    candidate_results = [
+        ROOT_DIR / "Output" / "model_results.csv",
+        APP_DIR / "Output" / "model_results.csv",
+        Path("Output/model_results.csv").resolve()
+    ]
+    found_path = None
+    for p in candidate_results:
+        if p.is_file():
+            found_path = str(p)
+            break
 
     if found_path is not None:
         metrics_df = pd.read_csv(found_path)
@@ -1393,15 +1425,19 @@ def page_model_performance():
             if st.button("Run Live Verification on Test Split"):
                 try:
                     import sys
-                    if 'src' not in sys.path:
-                        sys.path.append('src')
+                    src_dir = str(ROOT_DIR / 'src')
+                    if src_dir not in sys.path:
+                        sys.path.append(src_dir)
                     from preprocessing import load_data, clean_data, prepare_data
                     from evaluate_model import evaluate_predictions
                     from sklearn.linear_model import LinearRegression
                     from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
                     from sklearn.pipeline import Pipeline
 
-                    raw_eval_df = load_data('Dataset/student-mat.csv')
+                    eval_csv = ROOT_DIR / 'Dataset' / 'student-mat.csv'
+                    if not eval_csv.is_file():
+                        eval_csv = Path('Dataset/student-mat.csv').resolve()
+                    raw_eval_df = load_data(str(eval_csv))
                     clean_eval_df = clean_data(raw_eval_df)
                     X_tr, X_te, y_tr, y_te, prep = prepare_data(clean_eval_df)
 

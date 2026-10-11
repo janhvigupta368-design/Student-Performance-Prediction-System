@@ -1,6 +1,7 @@
 venv/
 __pycache__/
 *.pkl
+!Model/best_model.pkl
 Dataset/*.zip
 .env
 .ipynb_checkpoints/
